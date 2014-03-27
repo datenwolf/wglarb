@@ -26,12 +26,12 @@ THE SOFTWARE.
 
 #include <windows.h>
 
-HGLRC WINAPI wglext_CreateContextAttribsARB(
+HGLRC WINAPI wglarb_CreateContextAttribsARB(
 	HDC hDC,
 	HGLRC hShareContext,
 	const int *attribList);
 
-BOOL WINAPI wglext_ChoosePixelFormatARB(
+BOOL WINAPI wglarb_ChoosePixelFormatARB(
 	HDC hdc,
 	const int *piAttribIList,
 	const FLOAT *pfAttribFList,
