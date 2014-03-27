@@ -6,7 +6,7 @@ an intermediary OpenGL context (and usually also intermediary window) to obtain
 access to the extension functions.
 
 wglarb hides the nasty details behind a initialization-less API. Just call
-`wglext_ChoosePixelFormatARB` and `wglext_CreateContextAttribsARB`. Initialization
+`wglarb_ChoosePixelFormatARB` and `wglarb_CreateContextAttribsARB`. Initialization
 of the intermediary window and OpenGL context happen on demand as needed.
 
 **Important Notice:** 
