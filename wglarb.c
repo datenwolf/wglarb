@@ -27,7 +27,7 @@ THE SOFTWARE.
 #define WGLARB_INTERMEDIARY_STYLE	0
 #define WGLARB_INTERMEDIARY_EXSTYLE	0
 
-static HWND wglarb_intermediary_hWnd;
+static HWND wglarb_intermediary_hWnd = 0;
 
 BOOL wglarb_intermediary_create_Wnd(void)
 {
@@ -60,7 +60,7 @@ BOOL wglarb_intermediary_create_Wnd(void)
 	return TRUE;
 }
 
-static HDC wglarb_intermediary_hDC;
+static HDC wglarb_intermediary_hDC = 0;
 
 BOOL wglarb_intermediary_create_DC(void)
 {
@@ -77,7 +77,7 @@ BOOL wglarb_intermediary_create_DC(void)
 	return TRUE;
 }
 
-static HGLRC wglarb_intermediary_hRC;
+static HGLRC wglarb_intermediary_hRC = 0;
 
 BOOL wglarb_intermediary_create_RC(void)
 {
