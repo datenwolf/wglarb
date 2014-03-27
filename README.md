@@ -1,4 +1,4 @@
-= wglarb – a small helper library for making creating OpenGL contexts with extended attributes easy
+# wglarb – a small helper library for making creating OpenGL contexts with extended attributes easy
 
 wglarb is a helper library for Windows OpenGL application development. The way
 OpenGL and WGL extensions are implemented in Windows require the creation of
