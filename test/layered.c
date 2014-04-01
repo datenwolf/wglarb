@@ -12,11 +12,8 @@
 
 LRESULT CALLBACK ViewProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
-void reshape(int w,int h);
-void display();
+void display(HWND hWnd);
 
-HWND    hWnd = NULL;
-HDC     hDC  = NULL;
 HGLRC   hRC  = NULL;
 
 HMODULE hDwmAPI_DLL = NULL;
@@ -63,10 +60,10 @@ BOOL OpenGLWindowCreate(
 	RegisterClass(&wc);
 
 	fprintf(stderr, "creating proper window...\n");
-	hWnd = CreateWindowEx(	dwExStyle,
+	HWND hWnd = CreateWindowEx(	dwExStyle,
 				wc.lpszClassName,
 				lpszWindowName,
-				dwStyle | WS_CLIPSIBLINGS|WS_CLIPCHILDREN,
+				dwStyle,
 				240,240,640,640,
 				NULL,NULL,
 				hInstance,
@@ -79,7 +76,7 @@ BOOL OpenGLWindowCreate(
 	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)ViewProc);
 
 	fprintf(stderr, "retrieving proper DC...\n");
-	hDC = GetDC(hWnd);
+	HDC hDC = GetDC(hWnd);
 	if(!hDC) {
 		fprintf(stderr, "error retrieving proper DC\n");
 		DestroyWindow(hWnd);
@@ -148,10 +145,9 @@ BOOL OpenGLWindowCreate(
 
 		return FALSE;
 	}
+	ReleaseDC(hWnd, hDC);
 
-	/* Finally we can bind the proper OpenGL context to our window */
-	wglMakeCurrent(hDC, hRC);
-
+#if 1
 	if( hDwmAPI_DLL ) {
 		if( impl_DwmEnableBlurBehindWindow ) {
 			DWM_BLURBEHIND bb = {0};
@@ -169,6 +165,7 @@ BOOL OpenGLWindowCreate(
 	else {
 		SetLayeredWindowAttributes(hWnd, 0, 0xff, LWA_ALPHA);
 	}
+#endif
 
 	UpdateWindow(hWnd);
 	ShowWindow(hWnd, SW_SHOW);
@@ -190,7 +187,6 @@ void OnOpenGLWindowDestroy()
 {
 	wglMakeCurrent(NULL,NULL);
 	wglDeleteContext(hRC);
-	ReleaseDC(hWnd,hDC);
 	PostQuitMessage(0);
 }
 
@@ -217,12 +213,9 @@ LRESULT CALLBACK ViewProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		break;
 
 	case WM_PAINT:
-		display();
+		display(hWnd);
 		break;
 
-	case WM_SIZE:
-		reshape(LOWORD(lParam),HIWORD(lParam));
-		break;
 	default:
 		break;
 	}
@@ -230,21 +223,20 @@ LRESULT CALLBACK ViewProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 }
 
 
-void reshape(int w,int h)
+void display(HWND hWnd)
 {
-	win_width = w;
-	win_height = h;
-}
+	HDC hDC = GetDC(hWnd);
+	RECT rect;
+	GetClientRect(hWnd, &rect);
 
+	wglMakeCurrent(hDC, hRC);
 
-void display()
-{
-	float const ratio = (float)win_width/(float)win_height;
+	float const ratio = (float)rect.right/(float)rect.bottom;
 	glViewport(
 		0,
 		0,
-		win_width,
-		win_height);
+		rect.right,
+		rect.bottom);
 
 	glClearColor(0., 0., 0., 0.);
 	glClearDepth(1.);
@@ -279,14 +271,23 @@ void display()
 
 	SwapBuffers(hDC);
 	glFinish();
+
+	wglMakeCurrent(NULL, NULL);
+	ReleaseDC(hWnd, hDC);
 }
 
+#if 1
 int CALLBACK WinMain(
 	HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
 	LPSTR lpCmdLine,
 	int nCmdShow)
 {
+#else
+int main(int argc, char *argv[])
+{
+	HINSTANCE hInstance = GetModuleHandle(NULL);
+#endif
 	MSG msg;
 	BOOL bRet;
 
@@ -305,8 +306,12 @@ int CALLBACK WinMain(
 			"Test", "TestWnd",
 			ViewProc,
 			hInstance,
-			WS_OVERLAPPEDWINDOW,
-			WS_EX_APPWINDOW) ) {
+#if 0
+			WS_OVERLAPPEDWINDOW
+#else
+			WS_POPUP
+#endif
+			, WS_EX_APPWINDOW) ) {
 		return -1;
 	}
 
@@ -318,7 +323,6 @@ int CALLBACK WinMain(
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		display();
 	}
 	return msg.wParam;
 }
