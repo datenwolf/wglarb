@@ -8,15 +8,24 @@
 #include <GL/glext.h>
 
 #include <wglarb.h>
+#include <dwmapi.h>
 
 LRESULT CALLBACK ViewProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 void reshape(int w,int h);
 void display();
 
-HWND    hWnd;
-HDC     hDC;
-HGLRC   hRC;
+HWND    hWnd = NULL;
+HDC     hDC  = NULL;
+HGLRC   hRC  = NULL;
+
+HMODULE hDwmAPI_DLL = NULL;
+
+typedef HRESULT (WINAPI *procp_DwmEnableBlurBehindWindow)(HWND,const DWM_BLURBEHIND *);
+procp_DwmEnableBlurBehindWindow impl_DwmEnableBlurBehindWindow = NULL;
+
+typedef HRESULT (WINAPI *procp_DwmExtendFrameIntoClientArea)(HWND, MARGINS const*);
+procp_DwmExtendFrameIntoClientArea impl_DwmExtendFrameIntoClientArea = NULL;
 
 int win_width;
 int win_height;
@@ -57,8 +66,8 @@ BOOL OpenGLWindowCreate(
 	hWnd = CreateWindowEx(	dwExStyle,
 				wc.lpszClassName,
 				lpszWindowName,
-				dwStyle,
-				0,0,100,100,
+				dwStyle | WS_CLIPSIBLINGS|WS_CLIPCHILDREN,
+				240,240,640,640,
 				NULL,NULL,
 				hInstance,
 				NULL);
@@ -82,7 +91,8 @@ BOOL OpenGLWindowCreate(
 		WGL_DOUBLE_BUFFER_ARB, TRUE,
 		WGL_SUPPORT_OPENGL_ARB, TRUE, 
 		WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-		WGL_COLOR_BITS_ARB, 24,
+		WGL_TRANSPARENT_ARB, TRUE,
+		WGL_COLOR_BITS_ARB, 32,
 		WGL_RED_BITS_ARB, 8,
 		WGL_GREEN_BITS_ARB, 8,
 		WGL_BLUE_BITS_ARB, 8,
@@ -93,7 +103,6 @@ BOOL OpenGLWindowCreate(
 	};
 
 	INT iPF;
-	PIXELFORMATDESCRIPTOR pfd;
 	fprintf(stderr, "choosing proper pixelformat...\n");
 	UINT num_formats_choosen;
 	if( !wglarb_ChoosePixelFormatARB(
@@ -106,7 +115,12 @@ BOOL OpenGLWindowCreate(
 		fprintf(stderr, "error choosing proper pixel format\n");
 		return FALSE;
 	}
+	if( !num_formats_choosen ) {
+		return FALSE;
+	}
 
+	PIXELFORMATDESCRIPTOR pfd;
+	memset(&pfd, 0, sizeof(pfd));
 	/* now this is a kludge; we need to pass something in the PIXELFORMATDESCRIPTOR 
 	 * to SetPixelFormat; it will be ignored, mostly. OTOH we want to send something
 	 * sane, we're nice people after all - it doesn't hurt if this fails. */
@@ -138,7 +152,24 @@ BOOL OpenGLWindowCreate(
 	/* Finally we can bind the proper OpenGL context to our window */
 	wglMakeCurrent(hDC, hRC);
 
-	SetLayeredWindowAttributes(hWnd, RGB(0,0,0), 0xff, LWA_ALPHA);
+	if( hDwmAPI_DLL ) {
+		if( impl_DwmEnableBlurBehindWindow ) {
+			DWM_BLURBEHIND bb = {0};
+			bb.dwFlags = DWM_BB_ENABLE;
+			bb.fEnable = TRUE;
+			bb.hRgnBlur = NULL;
+			impl_DwmEnableBlurBehindWindow(hWnd, &bb);
+		}
+
+		if( impl_DwmExtendFrameIntoClientArea ) {
+			MARGINS margins = {-1};
+			impl_DwmExtendFrameIntoClientArea(hWnd, &margins);
+		}
+	}
+	else {
+		SetLayeredWindowAttributes(hWnd, 0, 0xff, LWA_ALPHA);
+	}
+
 	UpdateWindow(hWnd);
 	ShowWindow(hWnd, SW_SHOW);
 
@@ -215,7 +246,7 @@ void display()
 		win_width,
 		win_height);
 
-	glClearColor(0., 0., 0., 0.25);
+	glClearColor(0., 0., 0., 0.);
 	glClearDepth(1.);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -235,6 +266,9 @@ void display()
 		 0.,  sin60, 0., 0., 1.
 	};
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_COLOR_ARRAY);
 
@@ -244,6 +278,7 @@ void display()
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
 	SwapBuffers(hDC);
+	glFinish();
 }
 
 int CALLBACK WinMain(
@@ -255,12 +290,23 @@ int CALLBACK WinMain(
 	MSG msg;
 	BOOL bRet;
 
+	hDwmAPI_DLL = LoadLibrary("dwmapi.dll");
+	if( hDwmAPI_DLL ) {
+		impl_DwmEnableBlurBehindWindow =
+			(procp_DwmEnableBlurBehindWindow)
+			GetProcAddress(hDwmAPI_DLL, "DwmEnableBlurBehindWindow");
+		
+		impl_DwmExtendFrameIntoClientArea =
+			(procp_DwmExtendFrameIntoClientArea)
+			GetProcAddress(hDwmAPI_DLL, "DwmExtendFrameIntoClientArea");
+	}
+
 	if( !OpenGLWindowCreate(
 			"Test", "TestWnd",
 			ViewProc,
 			hInstance,
 			WS_OVERLAPPEDWINDOW,
-			WS_EX_APPWINDOW | WS_EX_LAYERED) ) {
+			WS_EX_APPWINDOW) ) {
 		return -1;
 	}
 
@@ -272,6 +318,7 @@ int CALLBACK WinMain(
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+		display();
 	}
 	return msg.wParam;
 }

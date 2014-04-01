@@ -23,7 +23,7 @@ THE SOFTWARE.
 #include "wglarb.h"
 
 #define WGLARB_INTERMEDIARY_CLASS	"wglarb intermediary"
-#define WGLARB_INTERMEDIARY_STYLE	0
+#define WGLARB_INTERMEDIARY_STYLE	(WS_CLIPSIBLINGS|WS_CLIPCHILDREN)
 #define WGLARB_INTERMEDIARY_EXSTYLE	0
 
 static HWND wglarb_intermediary_hWnd = 0;
