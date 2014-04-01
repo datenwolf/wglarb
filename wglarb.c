@@ -19,9 +19,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
+#include <GL/gl.h>
 #include "wglarb.h"
-
-#include <stdio.h>
 
 #define WGLARB_INTERMEDIARY_CLASS	"wglarb intermediary"
 #define WGLARB_INTERMEDIARY_STYLE	0
@@ -168,7 +167,7 @@ BOOL WINAPI wglarb_ChoosePixelFormatARB(
 	BOOL ret = FALSE;
 	if( impl ) {
 		ret = impl(
-			hDC,
+			hdc,
 			piAttribIList,
 			pfAttribFList,
 			nMaxFormats,

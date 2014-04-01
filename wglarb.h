@@ -24,7 +24,8 @@ THE SOFTWARE.
 #ifndef WGLARB_H
 #define WGLARB_H
 
-#include <windows.h>
+// #include <windows.h>
+#include <GL/wglext.h>
 
 HGLRC WINAPI wglarb_CreateContextAttribsARB(
 	HDC hDC,
