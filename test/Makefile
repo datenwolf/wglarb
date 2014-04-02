@@ -9,5 +9,5 @@ layered.exe: layered.c layered_rc.o
 	$(CC) $(CFLAGS) -o layered.exe layered.c layered_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
 
-layered_rc.o: layered.rc
+layered_rc.o: layered.rc manifest
 	$(WINDRES) --input layered.rc --output layered_rc.o
