@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
 			"Test", "TestWnd",
 			ViewProc,
 			hInstance,
-#if 0
+#if 1
 			WS_OVERLAPPEDWINDOW
 #else
 			WS_POPUP
