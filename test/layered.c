@@ -27,13 +27,14 @@ procp_DwmExtendFrameIntoClientArea impl_DwmExtendFrameIntoClientArea = NULL;
 int win_width;
 int win_height;
 
-BOOL OpenGLWindowCreate(
+HWND OpenGLWindowCreate(
 	LPCTSTR   lpszWindowName,
 	LPCTSTR   lpszClassName,
 	WNDPROC   lpfnWndProc,
 	HINSTANCE hInstance,
 	DWORD     dwStyle,
-	DWORD     dwExStyle )
+	DWORD     dwExStyle,
+	HWND      hWndParent)
 {
 	if(!hInstance) {
 		hInstance = GetModuleHandle(NULL);
@@ -59,18 +60,36 @@ BOOL OpenGLWindowCreate(
 	wc.lpszClassName = lpszClassName;
 	RegisterClass(&wc);
 
+	RECT rect;
+	if( hWndParent
+	 && (dwStyle & WS_CHILD) ) {
+		GetClientRect(hWndParent, &rect);
+	}
+	else {
+		rect.left   =
+		rect.top    =
+		rect.right  =
+		rect.bottom = CW_USEDEFAULT;
+	}
+
 	fprintf(stderr, "creating proper window...\n");
-	HWND hWnd = CreateWindowEx(	dwExStyle,
-				wc.lpszClassName,
-				lpszWindowName,
-				dwStyle,
-				240,240,640,640,
-				NULL,NULL,
-				hInstance,
-				NULL);
+	HWND hWnd =
+		CreateWindowEx(
+			dwExStyle,
+			wc.lpszClassName,
+			lpszWindowName,
+			dwStyle,
+			rect.left,
+			rect.top,
+			rect.right,
+			rect.bottom,
+			hWndParent,
+			NULL,
+			hInstance,
+			NULL);
 
 	if(!hWnd) {
-		return FALSE;
+		return NULL;
 	}
 
 	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)ViewProc);
@@ -80,7 +99,7 @@ BOOL OpenGLWindowCreate(
 	if(!hDC) {
 		fprintf(stderr, "error retrieving proper DC\n");
 		DestroyWindow(hWnd);
-		return FALSE;
+		return NULL;
 	}
 
 	int attribs[] = {
@@ -110,10 +129,10 @@ BOOL OpenGLWindowCreate(
 			&iPF,
 			&num_formats_choosen) ) {
 		fprintf(stderr, "error choosing proper pixel format\n");
-		return FALSE;
+		return NULL;
 	}
 	if( !num_formats_choosen ) {
-		return FALSE;
+		return NULL;
 	}
 
 	PIXELFORMATDESCRIPTOR pfd;
@@ -129,7 +148,7 @@ BOOL OpenGLWindowCreate(
 		ReleaseDC(hWnd, hDC);
 		DestroyWindow(hWnd);
 
-		return FALSE;
+		return NULL;
 	}
 
 	fprintf(stderr, "creating proper OpenGL context...\n");
@@ -143,34 +162,33 @@ BOOL OpenGLWindowCreate(
 		ReleaseDC(hWnd, hDC);
 		DestroyWindow(hWnd);
 
-		return FALSE;
+		return NULL;
 	}
 	ReleaseDC(hWnd, hDC);
 
 #if 1
-	if( hDwmAPI_DLL ) {
-		if( impl_DwmEnableBlurBehindWindow ) {
-			DWM_BLURBEHIND bb = {0};
-			bb.dwFlags = DWM_BB_ENABLE;
-			bb.fEnable = TRUE;
-			bb.hRgnBlur = NULL;
-			impl_DwmEnableBlurBehindWindow(hWnd, &bb);
-		}
+	if( !(dwStyle & WS_CHILD) ) {
+		if( hDwmAPI_DLL ) {
+			if( impl_DwmEnableBlurBehindWindow ) {
+				DWM_BLURBEHIND bb = {0};
+				bb.dwFlags = DWM_BB_ENABLE;
+				bb.fEnable = TRUE;
+				bb.hRgnBlur = NULL;
+				impl_DwmEnableBlurBehindWindow(hWnd, &bb);
+			}
 
-		if( impl_DwmExtendFrameIntoClientArea ) {
-			MARGINS margins = {-1};
-			impl_DwmExtendFrameIntoClientArea(hWnd, &margins);
+			if( impl_DwmExtendFrameIntoClientArea ) {
+				MARGINS margins = {-1};
+				impl_DwmExtendFrameIntoClientArea(hWnd, &margins);
+			}
 		}
-	}
-	else {
-		SetLayeredWindowAttributes(hWnd, 0, 0xff, LWA_ALPHA);
+		else {
+			SetLayeredWindowAttributes(hWnd, 0, 0xff, LWA_ALPHA);
+		}
 	}
 #endif
 
-	UpdateWindow(hWnd);
-	ShowWindow(hWnd, SW_SHOW);
-
-	return TRUE;
+	return hWnd;
 
 fail_create_rc:
 fail_set_pf:
@@ -180,7 +198,7 @@ fail_get_dc:
 	DestroyWindow(hWnd);
 fail_create_wnd:
 
-	return FALSE;
+	return NULL;
 }
 
 void OnOpenGLWindowDestroy()
@@ -302,18 +320,23 @@ int main(int argc, char *argv[])
 			GetProcAddress(hDwmAPI_DLL, "DwmExtendFrameIntoClientArea");
 	}
 
-	if( !OpenGLWindowCreate(
+
+	HWND hWndGL = OpenGLWindowCreate(
 			"Test", "TestWnd",
 			ViewProc,
 			hInstance,
-#if 0
+#if 1
 			WS_OVERLAPPEDWINDOW
 #else
 			WS_POPUP
 #endif
-			, WS_EX_APPWINDOW) ) {
+			, WS_EX_APPWINDOW,
+			NULL);
+	if(!hWndGL) {
 		return -1;
 	}
+	UpdateWindow(hWndGL);
+	ShowWindow(hWndGL, SW_SHOW);
 
 	while( (bRet = GetMessage(&msg, NULL, 0, 0)) ) {
 		if(bRet == -1) {
