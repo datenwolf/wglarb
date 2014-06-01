@@ -72,7 +72,6 @@ HWND OpenGLWindowCreate(
 		rect.bottom = CW_USEDEFAULT;
 	}
 
-	fprintf(stderr, "creating proper window...\n");
 	HWND hWnd =
 		CreateWindowEx(
 			dwExStyle,
@@ -87,14 +86,12 @@ HWND OpenGLWindowCreate(
 			NULL,
 			hInstance,
 			NULL);
-
 	if(!hWnd) {
 		return NULL;
 	}
 
 	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)ViewProc);
 
-	fprintf(stderr, "retrieving proper DC...\n");
 	HDC hDC = GetDC(hWnd);
 	if(!hDC) {
 		fprintf(stderr, "error retrieving proper DC\n");
@@ -119,7 +116,6 @@ HWND OpenGLWindowCreate(
 	};
 
 	INT iPF;
-	fprintf(stderr, "choosing proper pixelformat...\n");
 	UINT num_formats_choosen;
 	if( !wglarb_ChoosePixelFormatARB(
 			hDC, 
@@ -142,7 +138,6 @@ HWND OpenGLWindowCreate(
 	 * sane, we're nice people after all - it doesn't hurt if this fails. */
 	DescribePixelFormat(hDC, iPF, sizeof(pfd), &pfd);
 
-	fprintf(stderr, "setting proper pixelformat...\n");
 	if( !SetPixelFormat(hDC, iPF, &pfd) ) {
 		fprintf(stderr, "error setting proper pixel format\n");
 		ReleaseDC(hWnd, hDC);
@@ -151,7 +146,6 @@ HWND OpenGLWindowCreate(
 		return NULL;
 	}
 
-	fprintf(stderr, "creating proper OpenGL context...\n");
 	int context_attribs[] = {
 		WGL_CONTEXT_MAJOR_VERSION_ARB, 2,
 		WGL_CONTEXT_MINOR_VERSION_ARB, 1,
@@ -166,27 +160,20 @@ HWND OpenGLWindowCreate(
 	}
 	ReleaseDC(hWnd, hDC);
 
-#if 1
-	if( !(dwStyle & WS_CHILD) ) {
-		if( hDwmAPI_DLL ) {
-			if( impl_DwmEnableBlurBehindWindow ) {
-				DWM_BLURBEHIND bb = {0};
-				bb.dwFlags = DWM_BB_ENABLE;
-				bb.fEnable = TRUE;
-				bb.hRgnBlur = NULL;
-				impl_DwmEnableBlurBehindWindow(hWnd, &bb);
-			}
-
-			if( impl_DwmExtendFrameIntoClientArea ) {
-				MARGINS margins = {-1};
-				impl_DwmExtendFrameIntoClientArea(hWnd, &margins);
-			}
+	if( hDwmAPI_DLL ) {
+		if( impl_DwmEnableBlurBehindWindow ) {
+			DWM_BLURBEHIND bb = {0};
+			bb.dwFlags = DWM_BB_ENABLE;
+			bb.fEnable = TRUE;
+			bb.hRgnBlur = NULL;
+			impl_DwmEnableBlurBehindWindow(hWnd, &bb);
 		}
-		else {
-			SetLayeredWindowAttributes(hWnd, 0, 0xff, LWA_ALPHA);
+
+		if( impl_DwmExtendFrameIntoClientArea ) {
+			MARGINS margins = {-1};
+			impl_DwmExtendFrameIntoClientArea(hWnd, &margins);
 		}
 	}
-#endif
 
 	return hWnd;
 
@@ -309,17 +296,23 @@ int main(int argc, char *argv[])
 	MSG msg;
 	BOOL bRet;
 
-	hDwmAPI_DLL = LoadLibrary("dwmapi.dll");
-	if( hDwmAPI_DLL ) {
-		impl_DwmEnableBlurBehindWindow =
-			(procp_DwmEnableBlurBehindWindow)
-			GetProcAddress(hDwmAPI_DLL, "DwmEnableBlurBehindWindow");
-		
-		impl_DwmExtendFrameIntoClientArea =
-			(procp_DwmExtendFrameIntoClientArea)
-			GetProcAddress(hDwmAPI_DLL, "DwmExtendFrameIntoClientArea");
-	}
+	OSVERSIONINFO os_vinfo;
+	memset(&os_vinfo, 0, sizeof(os_vinfo));
+	os_vinfo.dwOSVersionInfoSize = sizeof(os_vinfo);
+	GetVersionEx(&os_vinfo);
 
+	if( 6 <= os_vinfo.dwMajorVersion ) {
+		hDwmAPI_DLL = LoadLibrary("dwmapi.dll");
+		if( hDwmAPI_DLL ) {
+			impl_DwmEnableBlurBehindWindow =
+				(procp_DwmEnableBlurBehindWindow)
+				GetProcAddress(hDwmAPI_DLL, "DwmEnableBlurBehindWindow");
+			
+			impl_DwmExtendFrameIntoClientArea =
+				(procp_DwmExtendFrameIntoClientArea)
+				GetProcAddress(hDwmAPI_DLL, "DwmExtendFrameIntoClientArea");
+		}
+	}
 
 	HWND hWndGL = OpenGLWindowCreate(
 			"Test", "TestWnd",

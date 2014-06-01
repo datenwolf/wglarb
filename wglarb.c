@@ -28,7 +28,7 @@ THE SOFTWARE.
 
 static HWND wglarb_intermediary_hWnd = 0;
 
-BOOL wglarb_intermediary_create_Wnd(void)
+static BOOL wglarb_intermediary_create_Wnd(void)
 {
 	HINSTANCE const hInstance = GetModuleHandle(NULL);
 
@@ -61,7 +61,7 @@ BOOL wglarb_intermediary_create_Wnd(void)
 
 static HDC wglarb_intermediary_hDC = 0;
 
-BOOL wglarb_intermediary_create_DC(void)
+static BOOL wglarb_intermediary_create_DC(void)
 {
 	if( !wglarb_intermediary_hWnd
 	 && !wglarb_intermediary_create_Wnd() ) {
@@ -78,7 +78,7 @@ BOOL wglarb_intermediary_create_DC(void)
 
 static HGLRC wglarb_intermediary_hRC = 0;
 
-BOOL wglarb_intermediary_create_RC(void)
+static BOOL wglarb_intermediary_create_RC(void)
 {
 	if( !wglarb_intermediary_hDC
 	 && !wglarb_intermediary_create_DC() ) {

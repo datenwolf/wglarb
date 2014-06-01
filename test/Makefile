@@ -1,13 +1,27 @@
-TARGET=x86_64-w64-mingw32
-CC=-$(TARGET)-gcc
+TARGET64=x86_64-w64-mingw32
+TARGET32=mingw32
+CC64=-$(TARGET64)-gcc
+CC32=-$(TARGET32)-gcc
 CFLAGS=-static-libgcc -static-libstdc++ -I..
 LIBS=-lopengl32 -lgdi32 -lkernel32
 
-WINDRES=$(TARGET)-windres
+WINDRES64=$(TARGET64)-windres
+WINDRES32=$(TARGET32)-windres
 
-layered.exe: layered.c layered_rc.o
-	$(CC) $(CFLAGS) -o layered.exe layered.c layered_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
+.PHONY: all
+
+all: layered64.exe layered32.exe
+
+layered64.exe: layered.c layered64_rc.o
+	$(CC64) $(CFLAGS) -o layered64.exe layered.c layered64_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
+
+layered32.exe: layered.c layered32_rc.o
+	$(CC32) $(CFLAGS) -o layered32.exe layered.c layered32_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
 
-layered_rc.o: layered.rc manifest
-	$(WINDRES) --input layered.rc --output layered_rc.o
+layered64_rc.o: layered.rc manifest.xml
+	$(WINDRES64) --input layered.rc --output layered64_rc.o
+
+layered32_rc.o: layered.rc manifest.xml
+	$(WINDRES32) --input layered.rc --output layered32_rc.o
+
