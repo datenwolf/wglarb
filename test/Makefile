@@ -16,7 +16,7 @@ layered64.exe: layered.c layered64_rc.o
 	$(CC64) $(CFLAGS) -o layered64.exe layered.c layered64_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
 layered32.exe: layered.c layered32_rc.o
-	$(CC32) $(CFLAGS) -o layered32.exe layered.c layered32_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
+	$(CC32) -march=i686 $(CFLAGS) -o layered32.exe layered.c layered32_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
 
 layered64_rc.o: layered.rc manifest.xml

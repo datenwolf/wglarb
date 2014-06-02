@@ -22,6 +22,51 @@ THE SOFTWARE.
 #include <GL/gl.h>
 #include "wglarb.h"
 
+#define wglarb_BuildAssert(cond) ((void)sizeof(char[1 - 2*!(cond)]))
+
+static HANDLE wglarb_intermediary_mutex = NULL;
+
+static DWORD wglarb_intermediary_lock(void)
+{
+	wglarb_BuildAssert( sizeof(PVOID) == sizeof(HANDLE) );
+
+	if( !wglarb_intermediary_mutex ) {
+		/* Between testing for the validity of the mutex handle,
+		 * creating a new mutex handle and using the interlocked
+		 * exchange there is a race. */
+
+		HANDLE const new_mutex =
+			CreateMutex(NULL, TRUE, NULL);
+
+		HANDLE const dst_mutex =
+			InterlockedCompareExchangePointer(
+				&wglarb_intermediary_mutex,
+				new_mutex,
+				NULL );
+
+		if( dst_mutex ) {
+			/* In this case we lost the race and another thread
+			 * beat this thread in creating a mutex object.
+			 * Clean up and wait for the proper mutex. */
+			ReleaseMutex(new_mutex);
+			CloseHandle(new_mutex);
+			goto wait_for_mutex;
+		}
+
+		/* mutex created in one time initialization and hold
+		 * by calling thread. Return signaled status. */
+		return WAIT_OBJECT_0;
+	}
+
+wait_for_mutex:
+	return WaitForSingleObject(wglarb_intermediary_mutex, INFINITE);
+}
+
+static BOOL wglarb_intermediary_unlock(void)
+{
+	return ReleaseMutex(wglarb_intermediary_mutex);
+}
+
 #define WGLARB_INTERMEDIARY_CLASS	"wglarb intermediary"
 #define WGLARB_INTERMEDIARY_STYLE	(WS_CLIPSIBLINGS|WS_CLIPCHILDREN)
 #define WGLARB_INTERMEDIARY_EXSTYLE	0
@@ -127,9 +172,14 @@ HGLRC WINAPI wglarb_CreateContextAttribsARB(
 	HGLRC hShareContext,
 	const int *attribList)
 {
+	if( WAIT_OBJECT_0 != wglarb_intermediary_lock() ) {
+		return NULL;
+	}
+
 	HDC   hOrigDC;
 	HGLRC hOrigRC;
 	if( !wglarb_intermediary_makecurrent(&hOrigDC, &hOrigRC) ) {
+		wglarb_intermediary_unlock();
 		return NULL;
 	}
 
@@ -143,6 +193,7 @@ HGLRC WINAPI wglarb_CreateContextAttribsARB(
 	}	
 	
 	wglMakeCurrent(hOrigDC, hOrigRC);
+	wglarb_intermediary_unlock();
 	return ret;
 }
 
@@ -154,9 +205,14 @@ BOOL WINAPI wglarb_ChoosePixelFormatARB(
 	int *piFormats,
 	UINT *nNumFormats)
 {
+	if( WAIT_OBJECT_0 != wglarb_intermediary_lock() ) {
+		return FALSE;
+	}
+
 	HDC   hOrigDC;
 	HGLRC hOrigRC;
 	if( !wglarb_intermediary_makecurrent(&hOrigDC, &hOrigRC) ) {
+		wglarb_intermediary_unlock();
 		return FALSE;
 	}
 
@@ -176,5 +232,6 @@ BOOL WINAPI wglarb_ChoosePixelFormatARB(
 	}	
 	
 	wglMakeCurrent(hOrigDC, hOrigRC);
+	wglarb_intermediary_unlock();
 	return ret;
 }
