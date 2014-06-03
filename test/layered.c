@@ -304,12 +304,10 @@ int main(int argc, char *argv[])
 	if( 6 <= os_vinfo.dwMajorVersion ) {
 		hDwmAPI_DLL = LoadLibrary("dwmapi.dll");
 		if( hDwmAPI_DLL ) {
-			impl_DwmEnableBlurBehindWindow =
-				(procp_DwmEnableBlurBehindWindow)
+			*(PROC*)(&impl_DwmEnableBlurBehindWindow) =
 				GetProcAddress(hDwmAPI_DLL, "DwmEnableBlurBehindWindow");
 			
-			impl_DwmExtendFrameIntoClientArea =
-				(procp_DwmExtendFrameIntoClientArea)
+			*(PROC*)(&impl_DwmExtendFrameIntoClientArea) =
 				GetProcAddress(hDwmAPI_DLL, "DwmExtendFrameIntoClientArea");
 		}
 	}
