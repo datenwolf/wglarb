@@ -1,5 +1,5 @@
 TARGET64=x86_64-w64-mingw32
-TARGET32=mingw32
+TARGET32=i686-w64-mingw32
 CC64=-$(TARGET64)-gcc
 CC32=-$(TARGET32)-gcc
 CFLAGS=-static-libgcc -static-libstdc++ -I..
@@ -25,3 +25,5 @@ layered64_rc.o: layered.rc manifest.xml
 layered32_rc.o: layered.rc manifest.xml
 	$(WINDRES32) --input layered.rc --output layered32_rc.o
 
+clean:
+	rm *.o *.exe

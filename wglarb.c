@@ -33,7 +33,9 @@ static DWORD wglarb_intermediary_lock(void)
 	if( !wglarb_intermediary_mutex ) {
 		/* Between testing for the validity of the mutex handle,
 		 * creating a new mutex handle and using the interlocked
-		 * exchange there is a race. */
+		 * exchange there is a race... */
+
+		/* //// START \\\\ */
 
 		HANDLE const new_mutex =
 			CreateMutex(NULL, TRUE, NULL);
@@ -43,6 +45,8 @@ static DWORD wglarb_intermediary_lock(void)
 				&wglarb_intermediary_mutex,
 				new_mutex,
 				NULL );
+
+		/* //// FINISH \\\\ */
 
 		if( dst_mutex ) {
 			/* In this case we lost the race and another thread
@@ -85,7 +89,6 @@ static BOOL wglarb_intermediary_create_Wnd(void)
 	wc.lpszClassName = WGLARB_INTERMEDIARY_CLASS;
 	RegisterClass(&wc);
 
-	/* Create a temporaray context to get address of wgl extensions. */
 	wglarb_intermediary_hWnd =
 		CreateWindowEx(
 			WGLARB_INTERMEDIARY_EXSTYLE,
@@ -95,7 +98,7 @@ static BOOL wglarb_intermediary_create_Wnd(void)
 			0,0,0,0,
 			NULL,NULL,
 			hInstance,
-			NULL);
+			NULL );
 
 	if( !wglarb_intermediary_hWnd ) {
 		FALSE;
@@ -160,7 +163,7 @@ static BOOL wglarb_intermediary_makecurrent(HDC *hOrigDC, HGLRC *hOrigRC)
 	*hOrigRC = wglGetCurrentContext();
 
 	if( !wglarb_intermediary_hRC
-	 && !wglarb_intermediary_create_RC() )  {
+	 && !wglarb_intermediary_create_RC() )	{
 		return FALSE;
 	}
 
@@ -183,9 +186,8 @@ HGLRC WINAPI wglarb_CreateContextAttribsARB(
 		return NULL;
 	}
 
-	PFNWGLCREATECONTEXTATTRIBSARBPROC impl =
-		(PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress(
-			"wglCreateContextAttribsARB");
+	PFNWGLCREATECONTEXTATTRIBSARBPROC impl;
+	*(PROC*)(&impl) = wglGetProcAddress("wglCreateContextAttribsARB");
 	
 	HGLRC ret = NULL;
 	if( impl ) {
@@ -216,9 +218,8 @@ BOOL WINAPI wglarb_ChoosePixelFormatARB(
 		return FALSE;
 	}
 
-	PFNWGLCHOOSEPIXELFORMATARBPROC impl = 
-		(PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress(
-			"wglChoosePixelFormatARB");
+	PFNWGLCHOOSEPIXELFORMATARBPROC impl;
+	*(PROC*)(&impl) = wglGetProcAddress("wglChoosePixelFormatARB");
 	
 	BOOL ret = FALSE;
 	if( impl ) {
