@@ -10,7 +10,7 @@ WINDRES32=$(TARGET32)-windres
 
 .PHONY: all
 
-all: layered64.exe layered32.exe
+all: layered64.exe layered32.exe shared64.exe shared32.exe
 
 layered64.exe: layered.c layered64_rc.o
 	$(CC64) $(CFLAGS) -o layered64.exe layered.c layered64_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
@@ -24,4 +24,18 @@ layered64_rc.o: layered.rc manifest.xml
 
 layered32_rc.o: layered.rc manifest.xml
 	$(WINDRES32) --input layered.rc --output layered32_rc.o
+
+
+shared64.exe: shared.c shared64_rc.o
+	$(CC64) $(CFLAGS) -o shared64.exe shared.c shared64_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
+
+shared32.exe: shared.c shared32_rc.o
+	$(CC32) -march=i686 $(CFLAGS) -o shared32.exe shared.c shared32_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
+
+
+shared64_rc.o: layered.rc manifest.xml
+	$(WINDRES64) --input shared.rc --output shared64_rc.o
+
+shared32_rc.o: layered.rc manifest.xml
+	$(WINDRES32) --input shared.rc --output shared32_rc.o
 
