@@ -1,4 +1,3 @@
-
 #include <windows.h>
 #include <wingdi.h>
 
@@ -48,13 +47,31 @@ typedef struct {
 
 typedef struct {
 	RefCountGLRC glrc;
-	BOOL cursor_needs_setting;
+	struct {
+		HCURSOR handle;
+		BOOL    set;
+	} cursor;
 
 	OpenGLWndFuncs wndfuncs;
 	void *userdata;
 } OpenGLWndData;
 
 LRESULT CALLBACK OpenGLWndProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+BOOL WindowSetCursor(
+	HWND hWnd,
+	HCURSOR hCursor )
+{
+	OpenGLWndData *data = (void*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+	if(!data) {
+		return FALSE;
+	}
+	data->cursor.handle = hCursor;
+	if( data->cursor.set ) {
+		SetCursor(hCursor);
+	}
+	return TRUE;
+}
 
 HWND CreateWindowForOpenGL(
 	HWND      hWndParent,
@@ -323,18 +340,13 @@ LRESULT CALLBACK OpenGLWndProc(
 	switch(uMsg)
 	{
 	case WM_MOUSELEAVE:
-		data->cursor_needs_setting = TRUE;
+		data->cursor.set = FALSE;
 		break;
 
 	case WM_MOUSEMOVE:
-		if( data->cursor_needs_setting ) {
-			SetClassLongPtr(
-				hWnd,
-				GCLP_HCURSOR,
-				(LONG_PTR)LoadCursor(NULL, IDC_ARROW) );
-			data->cursor_needs_setting = FALSE;
+		if( !data->cursor.set ) {
+			SetCursor(data->cursor.handle);
 		}
-
 		break;
 
 	case WM_DESTROY:
@@ -427,6 +439,58 @@ OpenGLWndFuncs const primary_window_funcs = {
 	.display = primary_display,
 };
 
+typedef struct {
+	GLuint rendertexture_fbo;
+} SecondaryWindowData;
+
+void secondary_display(HWND hWnd, void *userdata)
+{
+	RECT rect;
+	GetClientRect(hWnd, &rect);
+
+	float const ratio = (float)rect.right/(float)rect.bottom;
+	glViewport(
+		0,
+		0,
+		rect.right,
+		rect.bottom);
+
+	glClearColor(0., 0., 0., 0.);
+	glClearDepth(1.);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(-ratio, ratio, -1., 1., -1, 1);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+
+	float const cos60 = cosf(M_PI*60./180.);
+	float const sin60 = sinf(M_PI*60./180.);
+
+	GLfloat const triangle[] = {
+		-1., -sin60, 1., 0., 0.,
+		 1., -sin60, 0., 1., 0.,
+		 0.,  sin60, 0., 0., 1.
+	};
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glEnableClientState(GL_COLOR_ARRAY);
+
+	glVertexPointer(2, GL_FLOAT, sizeof(GLfloat)*5, &triangle[0]);
+	glColorPointer( 3, GL_FLOAT, sizeof(GLfloat)*5, &triangle[0]);
+
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+}
+
+OpenGLWndFuncs const secondary_window_funcs = {
+	.display = secondary_display,
+};
+
 int CALLBACK WinMain(
 	HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
@@ -436,31 +500,86 @@ int CALLBACK WinMain(
 	MSG msg;
 	BOOL bRet;
 
-	OSVERSIONINFO os_vinfo;
-	memset(&os_vinfo, 0, sizeof(os_vinfo));
-	os_vinfo.dwOSVersionInfoSize = sizeof(os_vinfo);
-	GetVersionEx(&os_vinfo);
-
 	PrimaryWindowData primary_data;
-
 	HWND hPrimaryWnd = CreateWindowForOpenGL(
 			NULL,
-			"Test",
+			"Test Primary Window",
 			pf_attribs,
 			hInstance,
 			WS_OVERLAPPEDWINDOW,
 			WS_EX_APPWINDOW,
 			&primary_window_funcs,
 			&primary_data );
-
 	if( !hPrimaryWnd ) {
 		return -1;
 	}
+	WindowSetCursor(
+		hPrimaryWnd,
+		LoadCursor(NULL, IDC_CROSS) );
+	RefCountGLRC primary_glrc =
+		CreateOpenGLContextToWindow(hPrimaryWnd, NULL);
+	if( !primary_glrc ) {
+		return -1;
+	}
 
-	CreateOpenGLContextToWindow(hPrimaryWnd, NULL);
+	BOOL glcontext_reuse = TRUE;
+
+	SecondaryWindowData secondary_data;
+	HWND hSecondaryWnd = CreateWindowForOpenGL(
+			NULL,
+			"Test Secondary Window",
+			pf_attribs,
+			hInstance,
+			WS_OVERLAPPEDWINDOW,
+			WS_EX_APPWINDOW,
+			&secondary_window_funcs,
+			&secondary_data );
+	if( !hSecondaryWnd ) {
+		return -1;
+	}
+	WindowSetCursor(
+		hSecondaryWnd,
+		LoadCursor(NULL, IDC_HAND) );
+	RefCountGLRC secondary_glrc;
+	if( glcontext_reuse ) {
+		if( !AssociateOpenGLContextWithWindow(
+				hSecondaryWnd,
+				primary_glrc) ) {
+			goto window_owns_own_context_fallback;
+		}
+		secondary_glrc = primary_glrc;
+	}
+	else {
+window_owns_own_context_fallback:
+		secondary_glrc =
+			CreateOpenGLContextToWindow(hSecondaryWnd, NULL);
+		if( !secondary_glrc ) {
+			return -1;
+		}
+
+		/* The secondary OpenGL context is freshly created. This
+		 * means nothing has been allocated from its namespaces
+		 * so far. Hence we can safely create a namespace sharing
+		 * association with the primary OpenGL context. All
+		 * data holding objects (textures, buffer objects, display
+		 * lists) will also appear in the secondary OpenGL context
+		 * from now on. Also anything created in the secondary
+		 * OpenGL context will appear in the primary one. */
+		if( !wglShareLists(primary_glrc->hRC, secondary_glrc->hRC) ) {
+			/* OpenGL context resource sharing failed. Most likely
+			 * the OpenGL contexts are incompatible to each other;
+			 * they may run on different drivers / GPUs but there
+			 * are other possible reasons. Since the contexts
+			 * and windows have been created using the very same 
+			 * this is very unlikely though. */
+			return -1;
+		}
+	}
 
 	UpdateWindow(hPrimaryWnd);
+	UpdateWindow(hSecondaryWnd);
 	ShowWindow(hPrimaryWnd, SW_SHOW);
+	ShowWindow(hSecondaryWnd, SW_SHOW);
 
 	while( (bRet = GetMessage(&msg, NULL, 0, 0)) ) {
 		if(bRet == -1) {
