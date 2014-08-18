@@ -3,6 +3,10 @@
 #include <wingdi.h>
 
 #include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <limits.h>
 #include <math.h>
 
 #include <GL/gl.h>
@@ -26,7 +30,7 @@ int const pf_attribs[] = {
 	0, 0
 };
 
-int context_attribs[] = {
+int gl_attribs[] = {
 	WGL_CONTEXT_MAJOR_VERSION_ARB, 2,
 	WGL_CONTEXT_MINOR_VERSION_ARB, 1,
 	0, 0
@@ -44,26 +48,22 @@ typedef struct {
 
 typedef struct {
 	RefCountGLRC glrc;
-	bool cursor_needs_setting;
+	BOOL cursor_needs_setting;
 
 	OpenGLWndFuncs wndfuncs;
 	void *userdata;
 } OpenGLWndData;
 
-LRESULT CALLBACK ViewProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-void display(HWND hWnd, void *userdata);
+LRESULT CALLBACK OpenGLWndProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 HWND CreateWindowForOpenGL(
 	HWND      hWndParent,
 	LPCTSTR   lpszWindowName,
-	LPCTSTR   lpszClassName,
-	WNDPROC   lpfnWndProc,
 	int const *pPFAttribs,
 	HINSTANCE hInstance,
 	DWORD     dwStyle,
 	DWORD     dwExStyle,
-	OpenGLWndFuncs wndfuncs,
+	OpenGLWndFuncs const *wndfuncs,
 	void      *userdata)
 {
 	if(!hInstance) {
@@ -77,17 +77,10 @@ HWND CreateWindowForOpenGL(
 
 	/* Register DefWindowProc as intermediary window proc in the
 	 * window class. We're setting the proper window proc of the
-	 * proper window to the user supplied window proc later so that
-	 * we can use the default proper window class name if no class
-	 * name was supplied by the user. It also allows to use the same
-	 * user supplied window class name with multiple, different
-	 * window functions. */
-	wc.lpfnWndProc = DefWindowProc;
-	/* register proper window class */
-	if( !lpszClassName ) {
-		return FALSE;
-	}
-	wc.lpszClassName = lpszClassName;
+	 * window later, when the userdata window long property has
+	 * been initialized. */
+	wc.lpfnWndProc   = DefWindowProc;
+	wc.lpszClassName = TEXT("OpenGL Window");
 	RegisterClass(&wc);
 
 	RECT rect;
@@ -116,22 +109,37 @@ HWND CreateWindowForOpenGL(
 			NULL,
 			hInstance,
 			NULL);
-	if(!hWnd) {
+	if( !hWnd ) {
 		goto fail_create_wnd;
+	}
 
-	OpenGLWndData *wnddata = calloc(1, sizeof(*wnddata));
+	OpenGLWndData *wnddata = VirtualAlloc(
+		NULL,
+		sizeof(*wnddata),
+		MEM_COMMIT | MEM_RESERVE,
+		PAGE_READWRITE );
+
 	if( !wnddata ) {
 		goto fail_alloc_wnddata;
 	}
-	wnddata->wndfuncs = wndfuncs;
 	wnddata->userdata = userdata;
+	wnddata->wndfuncs = *wndfuncs;
 	SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)wnddata);
+	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)OpenGLWndProc);
 
-	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)ViewProc);
+	/* Must call SetWindowPos to reliably update window longs...
+	 * Bad API design is bad. */
+	SetWindowPos(
+		hWnd, hWnd,
+		0, 0, 0, 0,
+		  SWP_NOACTIVATE
+		| SWP_NOCOPYBITS
+		| SWP_NOMOVE
+		| SWP_NOSIZE
+		| SWP_NOZORDER );
 
 	HDC hDC = GetDC(hWnd);
-	if(!hDC) {
-		DestroyWindow(hWnd);
+	if( !hDC ) {
 		goto fail_get_dc;
 	}
 
@@ -166,7 +174,13 @@ HWND CreateWindowForOpenGL(
 fail_set_pf:
 fail_choose_pf:
 	ReleaseDC(hWnd, hDC);
+
 fail_get_dc:
+	VirtualFree(
+		wnddata,
+		0,
+		MEM_RELEASE );
+
 fail_alloc_wnddata:
 	DestroyWindow(hWnd);
 fail_create_wnd:
@@ -174,42 +188,50 @@ fail_create_wnd:
 	return NULL;
 }
 
-bool AssociateOpenGLContextWithWindow_L(
+BOOL AssociateOpenGLContextWithWindow_L(
 	HWND hWnd,
 	RefCountGLRC glrc)
 {
 	if( 0 > glrc->refcount ) {
 		/* OpenGL context has been destroyed */
-		return false;
+		return FALSE;
 	}
 
 	if( INT_MAX == glrc->refcount ) {
 		/* refcount is at integer maximum.
 		 * This is very unlikely to happen though. */
-		return false;
+		return FALSE;
 	}
 
 	OpenGLWndData *data = (void*)GetWindowLongPtr(hWnd, GWLP_USERDATA);	
 	if( !data ) {
-		return false;
+		return FALSE;
 	}
 
 	++ glrc->refcount;
 	data->glrc = glrc;
 
-	return true;
+	return TRUE;
 }
 
 RefCountGLRC CreateOpenGLContextToWindow(
 	HWND hWnd,
 	int const *pGLAttribs )
 {
-	if( !hWnd
-	 || !pGLAttribs ) {
+	if( !hWnd ) {
 	 	return NULL;
 	}
 
-	RefCountGLRC glrc = cmalloc(1, sizeof(*glrc));
+	int const default_attribs[] = {0, 0};
+	if( !pGLAttribs ) {
+		pGLAttribs = default_attribs;
+	}
+
+	RefCountGLRC glrc = VirtualAlloc(
+		NULL,
+		sizeof(*glrc),
+		MEM_COMMIT | MEM_RESERVE,
+		PAGE_READWRITE);
 	if( !glrc ) {
 		goto fail_alloc_glrc;
 	}
@@ -249,34 +271,39 @@ fail_get_dc:
 	CloseHandle(glrc->mutex);
 
 fail_create_mutex:
-	free(glrc);
+	VirtualFree(
+		glrc,
+		0,
+		MEM_RELEASE );
 
 fail_alloc_glrc:
 	return NULL;
 }
 
-bool AssociateOpenGLContextWithWindow(
+BOOL AssociateOpenGLContextWithWindow(
 	HWND hWnd,
 	RefCountGLRC glrc)
 {
 	if( !hWnd
 	 || !glrc ) {
-		return false;
+		return FALSE;
 	}
 	
 	if( WAIT_OBJECT_0 != WaitForSingleObject(glrc->mutex, INFINITE) ) {
-		return false;
+		return FALSE;
 	}
-	bool const rv = AssociateOpenGLContextWithWindow_L(hWnd, glrc);
-	ReleaeMutex(glrc->mutex);
+	BOOL const rv = AssociateOpenGLContextWithWindow_L(hWnd, glrc);
+	ReleaseMutex(glrc->mutex);
 
 	return rv;
 }
 
 void OnOpenGLWindowDestroy(HWND hWnd)
 {
+	/*
 	wglMakeCurrent(NULL,NULL);
 	wglDeleteContext(hRC);
+	*/
 	PostQuitMessage(0);
 }
 
@@ -289,7 +316,9 @@ LRESULT CALLBACK OpenGLWndProc(
 	LPARAM lParam )
 {
 	OpenGLWndData *data = (void*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
-	assert(data);
+	if(!data) {
+		return DefWindowProc(hWnd,uMsg,wParam,lParam);
+	}
 
 	switch(uMsg)
 	{
@@ -299,7 +328,10 @@ LRESULT CALLBACK OpenGLWndProc(
 
 	case WM_MOUSEMOVE:
 		if( data->cursor_needs_setting ) {
-			SetClassLongPtr(hWnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, IDC_ARROW));
+			SetClassLongPtr(
+				hWnd,
+				GCLP_HCURSOR,
+				(LONG_PTR)LoadCursor(NULL, IDC_ARROW) );
 			data->cursor_needs_setting = FALSE;
 		}
 
@@ -315,8 +347,8 @@ LRESULT CALLBACK OpenGLWndProc(
 		if( data->glrc ) {
 			wglMakeCurrent(hDC, data->glrc->hRC);
 
-			if(data->wndfuncs->display) {
-				data->wndfuncs->display(hWnd, data->userdata);
+			if(data->wndfuncs.display) {
+				data->wndfuncs.display(hWnd, data->userdata);
 			}
 			else {
 				glClear(GL_COLOR_BUFFER_BIT);
@@ -343,7 +375,11 @@ LRESULT CALLBACK OpenGLWndProc(
 }
 
 
-void display(HWND hWnd)
+typedef struct {
+	GLuint anaglyph_fbo;
+} PrimaryWindowData;
+
+void primary_display(HWND hWnd, void *userdata)
 {
 	RECT rect;
 	GetClientRect(hWnd, &rect);
@@ -385,10 +421,11 @@ void display(HWND hWnd)
 	glColorPointer( 3, GL_FLOAT, sizeof(GLfloat)*5, &triangle[0]);
 
 	glDrawArrays(GL_TRIANGLES, 0, 3);
-
-	SwapBuffers(hDC);
-
 }
+
+OpenGLWndFuncs const primary_window_funcs = {
+	.display = primary_display,
+};
 
 int CALLBACK WinMain(
 	HINSTANCE hInstance,
@@ -404,18 +441,26 @@ int CALLBACK WinMain(
 	os_vinfo.dwOSVersionInfoSize = sizeof(os_vinfo);
 	GetVersionEx(&os_vinfo);
 
-	HWND hWndGL = OpenGLWindowCreate(
-			"Test", "TestWnd",
-			ViewProc,
+	PrimaryWindowData primary_data;
+
+	HWND hPrimaryWnd = CreateWindowForOpenGL(
+			NULL,
+			"Test",
+			pf_attribs,
 			hInstance,
-			WS_OVERLAPPEDWINDOW
-			, WS_EX_APPWINDOW,
-			NULL);
-	if(!hWndGL) {
+			WS_OVERLAPPEDWINDOW,
+			WS_EX_APPWINDOW,
+			&primary_window_funcs,
+			&primary_data );
+
+	if( !hPrimaryWnd ) {
 		return -1;
 	}
-	UpdateWindow(hWndGL);
-	ShowWindow(hWndGL, SW_SHOW);
+
+	CreateOpenGLContextToWindow(hPrimaryWnd, NULL);
+
+	UpdateWindow(hPrimaryWnd);
+	ShowWindow(hPrimaryWnd, SW_SHOW);
 
 	while( (bRet = GetMessage(&msg, NULL, 0, 0)) ) {
 		if(bRet == -1) {
