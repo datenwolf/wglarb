@@ -216,9 +216,16 @@ BOOL WINAPI wglarb_ChoosePixelFormatARB(
 		return FALSE;
 	}
 
-	PFNWGLCHOOSEPIXELFORMATARBPROC impl = 
-		(PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress(
-			"wglChoosePixelFormatARB");
+	PFNWGLCHOOSEPIXELFORMATARBPROC impl = NULL;
+
+	impl = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress(
+		"wglChoosePixelFormatARB");
+	if( !impl ) {
+		/* WGL_EXT_pixel_format uses the same function prototypes
+		 * as the WGL_ARB_pixel_format extension */
+		impl = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress(
+			"wglChoosePixelFormatEXT");
+	}
 	
 	BOOL ret = FALSE;
 	if( impl ) {

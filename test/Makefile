@@ -12,10 +12,10 @@ WINDRES32=$(TARGET32)-windres
 
 all: layered64.exe layered32.exe shared64.exe shared32.exe
 
-layered64.exe: layered.c layered64_rc.o
+layered64.exe: layered.c layered64_rc.o ../wglarb.c
 	$(CC64) $(CFLAGS) -o layered64.exe layered.c layered64_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
-layered32.exe: layered.c layered32_rc.o
+layered32.exe: layered.c layered32_rc.o ../wglarb.c
 	$(CC32) -march=i686 $(CFLAGS) -o layered32.exe layered.c layered32_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
 
@@ -26,10 +26,10 @@ layered32_rc.o: layered.rc manifest.xml
 	$(WINDRES32) --input layered.rc --output layered32_rc.o
 
 
-shared64.exe: shared.c shared64_rc.o
+shared64.exe: shared.c shared64_rc.o ../wglarb.c
 	$(CC64) $(CFLAGS) -o shared64.exe shared.c shared64_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
-shared32.exe: shared.c shared32_rc.o
+shared32.exe: shared.c shared32_rc.o ../wglarb.c
 	$(CC32) -march=i686 $(CFLAGS) -o shared32.exe shared.c shared32_rc.o ../wglarb.c $(LIBS) -Wl,--subsystem,windows
 
 
