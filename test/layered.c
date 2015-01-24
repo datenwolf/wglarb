@@ -24,6 +24,11 @@ procp_DwmEnableBlurBehindWindow impl_DwmEnableBlurBehindWindow = NULL;
 typedef HRESULT (WINAPI *procp_DwmExtendFrameIntoClientArea)(HWND, MARGINS const*);
 procp_DwmExtendFrameIntoClientArea impl_DwmExtendFrameIntoClientArea = NULL;
 
+typedef HRESULT (WINAPI *procp_DwmGetColorizationColor)(DWORD*,BOOL*);
+procp_DwmGetColorizationColor impl_DwmGetColorizationColor = NULL;
+
+float bg_color[3];
+
 int win_width;
 int win_height;
 
@@ -199,8 +204,27 @@ BOOL cursor_needs_setting = TRUE;
 
 LRESULT CALLBACK ViewProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
+	DWORD bgcol;
+	BOOL opaque;
 	switch(uMsg)
 	{
+	case WM_CREATE:
+	case WM_DWMNCRENDERINGCHANGED:
+		if( impl_DwmGetColorizationColor ) {
+			impl_DwmGetColorizationColor(&bgcol, &opaque);
+			if( opaque ) {
+				bg_color[0] = (float)GetRValue(bgcol)/255.f;
+				bg_color[1] = (float)GetGValue(bgcol)/255.f;
+				bg_color[2] = (float)GetBValue(bgcol)/255.f;
+			}
+			else {
+				bg_color[0] = 0.f;
+				bg_color[1] = 0.f;
+				bg_color[2] = 0.f;
+			}
+		}
+		break;
+
 	case WM_MOUSELEAVE:
 		cursor_needs_setting = TRUE;
 		break;
@@ -227,7 +251,6 @@ LRESULT CALLBACK ViewProc(HWND hWnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	return DefWindowProc(hWnd,uMsg,wParam,lParam);
 }
 
-
 void display(HWND hWnd)
 {
 	HDC hDC = GetDC(hWnd);
@@ -243,7 +266,11 @@ void display(HWND hWnd)
 		rect.right,
 		rect.bottom);
 
-	glClearColor(0., 0., 0., 0.);
+	glClearColor(
+		bg_color[0],
+		bg_color[1],
+		bg_color[2],
+		0.);
 	glClearDepth(1.);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -309,6 +336,9 @@ int main(int argc, char *argv[])
 			
 			*(PROC*)(&impl_DwmExtendFrameIntoClientArea) =
 				GetProcAddress(hDwmAPI_DLL, "DwmExtendFrameIntoClientArea");
+
+			*(PROC*)(&impl_DwmGetColorizationColor) =
+				GetProcAddress(hDwmAPI_DLL, "DwmGetColorizationColor");
 		}
 	}
 

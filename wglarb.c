@@ -48,21 +48,17 @@ static DWORD wglarb_intermediary_lock(void)
 
 		/* //// FINISH \\\\ */
 
-		if( dst_mutex ) {
-			/* In this case we lost the race and another thread
-			 * beat this thread in creating a mutex object.
-			 * Clean up and wait for the proper mutex. */
-			ReleaseMutex(new_mutex);
-			CloseHandle(new_mutex);
-			goto wait_for_mutex;
+		if( !dst_mutex ) {
+			/* mutex created in one time initialization and held
+			 * by calling thread. Return signaled status. */
+			return WAIT_OBJECT_0;
 		}
-
-		/* mutex created in one time initialization and hold
-		 * by calling thread. Return signaled status. */
-		return WAIT_OBJECT_0;
+		/* In this case we lost the race and another thread
+		 * beat this thread in creating a mutex object.
+		 * Clean up and wait for the proper mutex. */
+		ReleaseMutex(new_mutex);
+		CloseHandle(new_mutex);
 	}
-
-wait_for_mutex:
 	return WaitForSingleObject(wglarb_intermediary_mutex, INFINITE);
 }
 

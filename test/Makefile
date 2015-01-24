@@ -1,5 +1,5 @@
 TARGET64=x86_64-w64-mingw32
-TARGET32=i686-w64-mingw32
+TARGET32=mingw32
 CC64=-$(TARGET64)-gcc
 CC32=-$(TARGET32)-gcc
 CFLAGS=-static-libgcc -static-libstdc++ -I..
