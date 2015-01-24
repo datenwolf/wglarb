@@ -97,7 +97,7 @@ static BOOL wglarb_intermediary_create_Wnd(void)
 			NULL );
 
 	if( !wglarb_intermediary_hWnd ) {
-		FALSE;
+		return FALSE;
 	}
 
 	return TRUE;
@@ -138,15 +138,10 @@ static BOOL wglarb_intermediary_create_RC(void)
 	pfd.iLayerType = PFD_MAIN_PLANE;
 
 	int iPF;
-	if( !(iPF = ChoosePixelFormat(wglarb_intermediary_hDC, &pfd)) ) {
-		return FALSE;
-	}
-
-	if( !SetPixelFormat(wglarb_intermediary_hDC, iPF, &pfd) ) {
-		return FALSE;
-	}
-
-	if( !(wglarb_intermediary_hRC = wglCreateContext(wglarb_intermediary_hDC)) ) {
+	if( !(iPF = ChoosePixelFormat(wglarb_intermediary_hDC, &pfd))
+	 || !(SetPixelFormat(wglarb_intermediary_hDC, iPF, &pfd))
+	 || !(wglarb_intermediary_hRC = wglCreateContext(wglarb_intermediary_hDC))
+	) {
 		return FALSE;
 	}
 
