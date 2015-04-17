@@ -256,7 +256,7 @@ void display(HWND hWnd)
 		bg_color[0],
 		bg_color[1],
 		bg_color[2],
-		0.);
+		0.0);
 	glClearDepth(1.);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -266,6 +266,17 @@ void display(HWND hWnd)
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
+
+	GLfloat const gradient_blend[] = {
+		-1., -1., 0., 0., 0., 1.,
+		 1., -1., 0., 0., 0., 1.,
+
+		-1., 0.95, 0., 0., 0., 1.,
+		 1., 0.95, 0., 0., 0., 1.,
+
+		-1., 1., bg_color[0], bg_color[1], bg_color[2], 0.,
+		 1., 1., bg_color[0], bg_color[1], bg_color[2], 0.,
+	};
 
 	float const cos60 = cosf(M_PI*60./180.);
 	float const sin60 = sinf(M_PI*60./180.);
@@ -316,15 +327,11 @@ int main(int argc, char *argv[])
 	use_dwm = 6 <= os_vinfo.dwMajorVersion;
 
 	HWND hWndGL = OpenGLWindowCreate(
-			"Test", "TestWnd",
+			"Custom Frame Window", "CustFrmWnd",
 			ViewProc,
 			hInstance,
-#if 1
-			WS_OVERLAPPEDWINDOW
-#else
-			WS_POPUP
-#endif
-			, WS_EX_APPWINDOW,
+			WS_OVERLAPPEDWINDOW,
+			WS_EX_APPWINDOW,
 			NULL);
 	if(!hWndGL) {
 		return -1;
